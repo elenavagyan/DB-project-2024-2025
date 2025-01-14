@@ -59,7 +59,7 @@ def get_random_person_name() -> str:
     last_names = ["Ivanov", "Petrov", "Sidorov", "Smirnov", "Kuznetsov", "Popov", "Sokolov", "Lebedev", "Kozlov"]
     return f"{random.choice(first_names)} {random.choice(last_names)}"
 
-def get_random_quantity() -> float:
+def get_random_quantity() -> int:
     return round(random.uniform(1, 1000), 2)
 
 def get_random_price() -> float:
@@ -71,6 +71,61 @@ def get_random_date(start_date: datetime = None) -> datetime:
     max_days = (datetime.now() + timedelta(days=30) - start_date).days
     days_to_add = random.randint(0, max_days)
     return start_date + timedelta(days=days_to_add)
+
+
+def generate_random_products(count: int, db: Session):
+    for _ in range(count):
+        name = get_random_product_name()
+        manufacturer = get_random_manufacturer()
+        unit = get_random_unit()
+
+        product = Product(name=name, manufacturer=manufacturer, unit=unit)
+        db.add(product)
+
+    db.commit()
+    return f"{count} random products generated successfully."
+
+
+def generate_random_customers(count: int, db: Session):
+    for _ in range(count):
+        name = get_random_person_name()
+        address = get_random_address()
+        phone = get_random_phone()
+        contact_person = get_random_person_name()
+
+        customer = Customer(name=name, address=address, phone=phone, contact_person=contact_person)
+        db.add(customer)
+
+    db.commit()
+    return f"{count} random customers generated successfully."
+
+
+def generate_random_purchases(count: int, db: Session):
+    products = db.query(Product).all()
+    customers = db.query(Customer).all()
+
+    if not products or not customers:
+        return "Error: There must be at least one product and one customer in the database to generate purchases."
+
+    for _ in range(count):
+        product = random.choice(products)
+        customer = random.choice(customers)
+        quantity = get_random_quantity()
+        delivery_date = get_random_date()
+        price_per_unit = get_random_price()
+
+        purchase = Purchase(
+            product_id=product.product_id,
+            customer_id=customer.customer_id,
+            quantity=quantity,
+            delivery_date=delivery_date,
+            price_per_unit=price_per_unit,
+        )
+        db.add(purchase)
+
+    db.commit()
+    return f"{count} random purchases generated successfully."
+
 
 # Conversion function to datetime
 def to_datetime(input_str: str) -> datetime:
@@ -86,21 +141,30 @@ method_dict = {
     "product": {
         "create": lambda name, manufacturer, unit, db: create_product(name, manufacturer, unit, db),
         "get": lambda product_id, db: get_product(product_id, db),
-        "get-all": lambda db, *args: get_all_products(db),  # FIXED
+        "get-all": lambda db, *args: get_all_products(db),
         "delete": lambda product_id, db: delete_product(product_id, db),
+        "delete-all": lambda db: delete_all_products(db),
+        "generate": lambda count, db: generate_random_products(int(count), db),
     },
     "customer": {
         "create": lambda name, address, phone, contact_person, db: create_customer(name, address, phone, contact_person, db),
         "get": lambda customer_id, db: get_customer(customer_id, db),
-        "get-all": lambda db, *args: get_all_customers(db),  # FIXED
+        "get-all": lambda db, *args: get_all_customers(db),
+        "delete": lambda customer_id, db: delete_customer(customer_id, db),
+        "delete-all": lambda db: delete_all_customers(db),
+        "generate": lambda count, db: generate_random_customers(int(count), db),
     },
     "purchase": {
         "create": lambda product_id, customer_id, quantity, delivery_date, price_per_unit, db: create_purchase(product_id, customer_id, quantity, delivery_date, price_per_unit, db),
         "get": lambda purchase_id, db: get_purchase(purchase_id, db),
-        "get-all": lambda db, *args: get_all_purchases(db),  # FIXED
+        "get-all": lambda db, *args: get_all_purchases(db),
         "delete": lambda purchase_id, db: delete_purchase(purchase_id, db),
-    }
+        "delete-all": lambda db: delete_all_purchases(db),
+        "generate": lambda count, db: generate_random_purchases(int(count), db),
+    },
 }
+
+
 
 
 
@@ -132,6 +196,17 @@ def delete_product(product_id, db: Session):
     db.commit()
     return f"Product with ID {product_id} deleted."
 
+def delete_all_products(db: Session):
+    products = db.query(Product).all()
+
+    if not products:
+        return "No products to delete."
+
+    db.query(Product).delete()
+    db.commit()
+    return "All products deleted successfully."
+
+
 # ------------------------------
 # 🛠️ Customer Functions
 # ------------------------------
@@ -151,6 +226,28 @@ def get_customer(customer_id, db: Session):
 def get_all_customers(db: Session):
     customers = db.query(Customer).all()
     return [f"{customer.customer_id}: {customer.name}, {customer.address}, {customer.phone}" for customer in customers]
+
+def delete_customer(customer_id: int, db: Session):
+    customer = db.query(Customer).filter(Customer.customer_id == customer_id).first()
+
+    if not customer:
+        return f"Customer with ID {customer_id} not found."
+
+    db.delete(customer)
+    db.commit()
+    return f"Customer with ID {customer_id} deleted successfully."
+
+def delete_all_customers(db: Session):
+    customers = db.query(Customer).all()
+
+    if not customers:
+        return "No customers to delete."
+
+    db.query(Customer).delete()
+    db.commit()
+    return f"All customers deleted successfully."
+
+
 
 # ------------------------------
 # 🛠️ Purchase Functions
@@ -196,6 +293,17 @@ def delete_purchase(purchase_id, db: Session):
     db.delete(purchase)
     db.commit()
     return f"Purchase with ID {purchase_id} deleted."
+
+def delete_all_purchases(db: Session):
+    purchases = db.query(Purchase).all()
+
+    if not purchases:
+        return "No purchases to delete."
+
+    db.query(Purchase).delete()
+    db.commit()
+    return f"All purchases deleted successfully."
+
 
 
 # Command Parsing Functions
